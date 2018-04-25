@@ -14,7 +14,7 @@ SD_URL_PATTERN = "https://pl{0}.live.panda.tv/live_panda/{1}.flv?sign={2}&ts={3}
 HD_URL_PATTERN = "https://pl{0}.live.panda.tv/live_panda/{1}_mid.flv?sign={2}&ts={3}&rid={4}"
 OD_URL_PATTERN = "https://pl{0}.live.panda.tv/live_panda/{1}_small.flv?sign={2}&ts={3}&rid={4}"
 
-_url_re = re.compile(r"http(s)?://(\w+.)?panda.tv/(?P<channel>[^/&?]+)")
+_url_re = re.compile(r"http(s)?://(?P<site>\w+.)?panda.tv/(?P<channel>[^/&?]+)")
 _room_id_re = re.compile(r'data-room-id="(\d+)"')
 _status_re = re.compile(r'"status"\s*:\s*"(\d+)"\s*,\s*"display_type"')
 _room_key_re = re.compile(r'"room_key"\s*:\s*"(.+?)"')
@@ -25,6 +25,8 @@ _sign_re = re.compile(r'"sign"\s*:\s*"(.+?)"')
 _sd_re = re.compile(r'"SD"\s*:\s*"(\d+)"')
 _hd_re = re.compile(r'"HD"\s*:\s*"(\d+)"')
 _od_re = re.compile(r'"OD"\s*:\s*"(\d+)"')
+
+_xingyan_re = re.compile(r"<script>window.HOSTINFO=(.*);</script>")
 
 _room_schema = validate.Schema(
     {
@@ -50,9 +52,25 @@ class Pandatv(Plugin):
     def can_handle_url(cls, url):
         return _url_re.match(url)
 
+    def _get_streams_xingyan(self, channel):
+        channel = int(channel)
+        
+        res = http.get(self.url)
+        jsondata = _xingyan_re.search(res.text).group(1)
+        info = json.loads(jsondata)
+        return info['videoinfo']['streamurl']
+
+
+
+
     def _get_streams(self):
         match = _url_re.match(self.url)
         channel = match.group("channel")
+        site = match.group("site")
+
+        if site == "xingyan.":
+            url = self._get_streams_xingyan(channel)
+            return {'live': HTTPStream(self.session, url, buffered=True)}
 
         res = http.get(self.url)
 
